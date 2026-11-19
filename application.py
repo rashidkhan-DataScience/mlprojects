@@ -1,25 +1,22 @@
 import os
-from flask import Flask,request, render_template
+from flask import Flask, request, render_template, send_file
 import pandas as pd
 import numpy as np
-from src.pipeline.predict_pipeline import CustomData,PredictPipeline
-
-from sklearn.preprocessing import StandardScaler
+from src.pipeline.predict_pipeline import CustomData, PredictPipeline
 
 application = Flask(__name__)
-
-app=application
+app = application
 
 @app.route('/')
 def index():
     return render_template('home.html')
 
-@app.route('/predictdata',methods=['GET','POST'])
+@app.route('/predictdata', methods=['GET', 'POST'])
 def predict_datapoint():
-    if request.method=="GET":
+    if request.method == "GET":
         return render_template('home.html')
     else:
-        data=CustomData(
+        data = CustomData(
             gender=request.form.get('gender'),
             race_ethnicity=request.form.get('ethnicity'),
             parental_level_of_education=request.form.get('parental_level_of_education'),
@@ -27,10 +24,10 @@ def predict_datapoint():
             test_preparation_course=request.form.get('test_preparation_course'),
             reading_score=request.form.get('reading_score'),
             writing_score=request.form.get('writing_score')
-            )
+        )
 
         preds_df = data.get_data_as_data_frame()
-        print(preds_df)
+        print(preds_df, flush=True)
 
         predict_pipeline = PredictPipeline()
         results = predict_pipeline.predict(preds_df)
@@ -39,11 +36,24 @@ def predict_datapoint():
         prediction_record = preds_df.copy()
         prediction_record['pred_math_score'] = predicted_score
         prediction_record['prediction_time'] = pd.Timestamp.now()
-        file_path = r'D:\Projects\mlprojects\prediction_summary.csv'
-        prediction_record.to_csv(file_path,mode='a',index=False,header=not os.path.exists(file_path))
-        
-        return render_template('home.html',results=round(results[0],2))
-        
+
+        os.makedirs('artifacts', exist_ok=True)
+        file_path = os.path.join('artifacts', 'prediction_summary.csv')
+        prediction_record.to_csv(
+            file_path,
+            mode='a',
+            index=False,
+            header=not os.path.exists(file_path)
+        )
+
+        return render_template('home.html', results=round(results[0], 2))
+
+@app.route('/predictions')
+def view_predictions():
+    file_path = os.path.join('artifacts', 'prediction_summary.csv')
+    if os.path.exists(file_path):
+        return send_file(file_path, mimetype='text/csv', as_attachment=False)
+    return "No predictions recorded yet."
 
 if __name__ == "__main__":
     app.run('0.0.0.0')
